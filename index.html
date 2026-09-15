@@ -217,7 +217,7 @@ footer{border-top:1px solid var(--line);padding:18px 0;color:var(--faint);font-s
 <script>
 /* ── CONFIG — set these two values ─────────────────────────────── */
 const SUPABASE_URL = "https://hhxdncroswzmhorsqmma.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhoeGRuY3Jvc3d6bWhvcnNxbW1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0OTYyMzksImV4cCI6MjEwNTA3MjIzOX0.QMMGO9b1KRP49ybrgthbEKmr2QyJK_VjXXuYeEsaT7I";
+const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
 /* ──────────────────────────────────────────────────────────────── */
 
 const HEADERS = { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY };
@@ -407,10 +407,14 @@ function gameCard(g, flagHtml, feature){
 
     if(done){
       const hit = p.pick === (g.home_score>g.away_score ? g.home : g.away);
+      const lbl = p.retro ? "Retro pick" : "Pick";
+      const tail = p.retro
+        ? `Would have said ${pct(Math.max(hp,ap))} — computed after the fact, pregame data only`
+        : `Locked ${pct(Math.max(hp,ap))} pregame`;
       line=`<div class="gline"><span>Final: <b>${g.away_score}–${g.home_score}</b></span>
-        <span>Pick was <b>${esc(state.teams[p.pick]?.name||p.pick)}</b>
+        <span>${lbl} was <b>${esc(state.teams[p.pick]?.name||p.pick)}</b>
         <span class="${hit?"result-hit":"result-miss"}">${hit?"✓ hit":"✗ miss"}</span></span>
-        <span>Locked ${pct(Math.max(hp,ap))} pregame</span></div>`;
+        <span>${tail}</span></div>`;
     }else{
       const wx = p.breakdown?.weather;
       const wxBit = wx && !wx.indoor && wx.summary ? `<span>${esc(wx.summary)}</span>` : "";
