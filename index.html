@@ -10,8 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
 <style>
 :root{
-  --base:#F4F6F9; --raised:#18222F; --line:#2A3650; --ink:#EAF0F8;
-  --dim:#92A0B5; --faint:#5E6C82; --amber:#F0A63A; --alert:#E4572E; --good:#4CC38A;
+  --base:#F4F6F9; --raised:#FFFFFF; --line:#D8DFE9; --ink:#16202E;
+  --dim:#54637A; --faint:#8B97A8; --amber:#B26E0F; --alert:#C23F1C; --good:#177A4F;
   --r:6px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -27,7 +27,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 button:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 .wrap{max-width:960px;margin:0 auto;padding:0 16px}
 
-header{border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(16,24,34,.94);backdrop-filter:blur(6px);z-index:20}
+header{border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(244,246,249,.94);backdrop-filter:blur(6px);z-index:20}
 .bar{display:flex;align-items:center;gap:16px;height:58px}
 .mark{font-weight:800;font-style:italic;font-size:19px;letter-spacing:-.02em;white-space:nowrap}
 .mark em{font-style:italic;color:var(--amber)}
@@ -51,7 +51,7 @@ select{background:var(--raised);color:var(--ink);border:1px solid var(--line);bo
 
 .games{border-top:1px solid var(--line)}
 .game{border-bottom:1px solid var(--line);padding:16px 0}
-.game.feature{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:20px;margin:0 0 18px}
+.game.feature{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:20px;margin:0 0 18px;box-shadow:0 2px 8px rgba(22,32,46,.06)}
 .gtop{display:flex;align-items:baseline;gap:10px;font-size:13px;color:var(--dim);margin-bottom:10px;flex-wrap:wrap}
 .gtop .flag{font-weight:700;font-size:12px}
 .flag.hot{color:var(--amber)} .flag.upset{color:var(--alert)} .flag.coin{color:var(--dim)}
@@ -216,8 +216,8 @@ footer{border-top:1px solid var(--line);padding:18px 0;color:var(--faint);font-s
 
 <script>
 /* ── CONFIG — set these two values ─────────────────────────────── */
-const SUPABASE_URL = "https://hhxdncroswzmhorsqmma.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhoeGRuY3Jvc3d6bWhvcnNxbW1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0OTYyMzksImV4cCI6MjEwNTA3MjIzOX0.QMMGO9b1KRP49ybrgthbEKmr2QyJK_VjXXuYeEsaT7I";
+const SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
+const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
 /* ──────────────────────────────────────────────────────────────── */
 
 const HEADERS = { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY };
@@ -235,7 +235,13 @@ function brightVal(hex){
   const [r,g,b]=[(n>>16)&255,(n>>8)&255,n&255].map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)});
   return .2126*r+.7152*g+.0722*b;
 }
-function teamColor(t){ if(!t) return "#5E6C82"; return brightVal(t.color)>=.05?t.color:(brightVal(t.color2||"#888")>=.05?t.color2:"#8A96AA"); }
+function teamColor(t){
+  if(!t) return "#54637A";
+  // light background: prefer the darker of the team's two colors
+  if(brightVal(t.color)<=.35) return t.color;
+  if(t.color2 && brightVal(t.color2)<=.35) return t.color2;
+  return brightVal(t.color)<=brightVal(t.color2||"#fff")?t.color:(t.color2||"#54637A");
+}
 const pct = p => (p*100).toFixed(1)+"%";
 const confClass = c => ({"Very High":"vh","High":"h","Moderate":"m","Low":"l","Toss-Up":"t"})[c]||"t";
 const signed = v => (v>0?"+":"")+Number(v).toFixed(1);
