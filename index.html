@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NFL Win Predictor</title>
+<meta name="description" content="Calibrated straight-up NFL win probabilities from a transparent Elo + EPA + market model.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --base:#101822; --raised:#18222F; --line:#2A3650; --ink:#EAF0F8;
+  --dim:#92A0B5; --faint:#5E6C82; --amber:#F0A63A; --alert:#E4572E; --good:#4CC38A;
+  --r:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--base); color:var(--ink);
+  font-family:'Archivo',system-ui,sans-serif; font-size:15px; line-height:1.5;
+  font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+button:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.wrap{max-width:960px;margin:0 auto;padding:0 16px}
+
+header{border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(16,24,34,.94);backdrop-filter:blur(6px);z-index:20}
+.bar{display:flex;align-items:center;gap:16px;height:58px}
+.mark{font-weight:800;font-style:italic;font-size:19px;letter-spacing:-.02em;white-space:nowrap}
+.mark em{font-style:italic;color:var(--amber)}
+nav{display:flex;gap:2px;margin-left:auto;overflow-x:auto}
+nav button{padding:8px 12px;color:var(--dim);font-weight:600;font-size:14px;border-radius:var(--r);white-space:nowrap}
+nav button[aria-current="true"]{color:var(--ink);background:var(--raised)}
+.sync{display:flex;align-items:center;gap:10px;padding:10px 0 14px;font-size:13px;color:var(--faint);flex-wrap:wrap}
+.sync button{color:var(--amber);font-weight:700;font-size:13px;padding:5px 10px;border:1px solid var(--line);border-radius:var(--r)}
+.sync button:disabled{opacity:.5;cursor:wait}
+
+main{padding:22px 0 80px}
+h1{font-size:24px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px}
+.sub{color:var(--dim);font-size:14px;margin-bottom:20px;max-width:64ch}
+h2{font-size:16px;font-weight:700;margin:28px 0 10px}
+
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px}
+.weeks{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;flex:1;min-width:0}
+.weeks button{padding:6px 11px;border:1px solid var(--line);border-radius:var(--r);font-size:13px;font-weight:600;color:var(--dim);flex:0 0 auto}
+.weeks button[aria-current="true"]{color:var(--base);background:var(--ink);border-color:var(--ink)}
+select{background:var(--raised);color:var(--ink);border:1px solid var(--line);border-radius:var(--r);padding:6px 10px;font-size:13px;font-weight:600}
+
+.games{border-top:1px solid var(--line)}
+.game{border-bottom:1px solid var(--line);padding:16px 0}
+.game.feature{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:20px;margin:0 0 18px}
+.gtop{display:flex;align-items:baseline;gap:10px;font-size:13px;color:var(--dim);margin-bottom:10px;flex-wrap:wrap}
+.gtop .flag{font-weight:700;font-size:12px}
+.flag.hot{color:var(--amber)} .flag.upset{color:var(--alert)} .flag.coin{color:var(--dim)}
+.teams{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-bottom:12px}
+.tm{display:flex;align-items:center;gap:10px;min-width:0}
+.tm.right{flex-direction:row-reverse;text-align:right}
+.tm img{width:40px;height:40px;flex:0 0 auto}
+.tm .nm{font-weight:700;font-size:15px;line-height:1.2;overflow:hidden;text-overflow:ellipsis}
+.tm .rec{font-size:12px;color:var(--dim)}
+.at{color:var(--faint);font-size:13px;font-weight:600}
+.feature .tm img{width:56px;height:56px}
+.feature .tm .nm{font-size:19px}
+
+.probs{display:flex;justify-content:space-between;font-size:13px;font-weight:700;margin-bottom:5px}
+.probs .win{font-size:15px}
+.bar-split{position:relative;height:14px;border-radius:7px;overflow:hidden;background:var(--line)}
+.bar-split .away,.bar-split .home{position:absolute;top:0;bottom:0}
+.bar-split .away{left:0}
+.bar-split .home{right:0}
+.bar-split .tick{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
+.feature .bar-split{height:20px;border-radius:10px}
+
+.gline{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:12px;font-size:13px;color:var(--dim)}
+.gline b{color:var(--ink);font-weight:700}
+.chip{padding:3px 9px;border-radius:20px;font-size:12px;font-weight:700;border:1px solid var(--line)}
+.chip.vh{color:var(--good);border-color:var(--good)}
+.chip.h{color:var(--good)}
+.chip.m{color:var(--amber)}
+.chip.l,.chip.t{color:var(--dim)}
+.result-hit{color:var(--good);font-weight:700}
+.result-miss{color:var(--alert);font-weight:700}
+
+.more{margin-top:12px;font-size:13px;font-weight:700;color:var(--amber)}
+.detail{display:none;margin-top:14px;border-top:1px dashed var(--line);padding-top:14px}
+.game.open .detail{display:block}
+.detail h3{font-size:13px;font-weight:700;color:var(--dim);margin:14px 0 6px}
+.detail h3:first-child{margin-top:0}
+.detail ul{list-style:none}
+.detail li{padding:3px 0 3px 16px;position:relative;font-size:14px}
+.detail li::before{content:"";position:absolute;left:2px;top:11px;width:6px;height:6px;border-radius:50%;background:var(--amber)}
+.detail .risks li::before{background:var(--alert)}
+.brk{display:grid;grid-template-columns:1fr auto;gap:4px 16px;font-size:14px;max-width:420px}
+.brk span{color:var(--dim)} .brk b{text-align:right;font-weight:700}
+.brk b.pos{color:var(--good)} .brk b.neg{color:var(--alert)}
+.brk .tot{border-top:1px solid var(--line);padding-top:5px;margin-top:2px}
+.subnote{font-size:12px;color:var(--faint);margin-top:6px;max-width:60ch}
+
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:12px;font-weight:700;color:var(--faint);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.n{text-align:right}
+th.n{text-align:right}
+.rk-team{display:flex;align-items:center;gap:9px;font-weight:700}
+.rk-team img{width:26px;height:26px}
+.rk-team small{color:var(--dim);font-weight:400}
+.mv-up{color:var(--good);font-weight:700}.mv-dn{color:var(--alert);font-weight:700}.mv-fl{color:var(--faint)}
+.pos{color:var(--good)}.neg{color:var(--alert)}
+.rbar{height:6px;border-radius:3px;background:var(--line);min-width:80px;position:relative}
+.rbar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:8px}
+.stat{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:14px}
+.stat .v{font-size:26px;font-weight:800;letter-spacing:-.02em}
+.stat .k{font-size:12px;color:var(--dim);margin-top:2px}
+.bucket{display:grid;grid-template-columns:92px 1fr 110px;gap:12px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+.bucket .lbl{font-weight:700;font-size:13px}
+.bucket .meta{color:var(--dim);font-size:13px;text-align:right}
+.note{background:var(--raised);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:var(--r);padding:12px 14px;font-size:14px;color:var(--dim);margin:16px 0}
+.note b{color:var(--ink)}
+
+.prose{max-width:66ch;font-size:15px}
+.prose p{margin-bottom:14px}
+.prose h2{margin-top:26px}
+
+.empty{border:1px dashed var(--line);border-radius:10px;padding:36px 20px;text-align:center;color:var(--dim)}
+.empty b{color:var(--ink);display:block;margin-bottom:6px;font-size:16px}
+.err{color:var(--alert);font-size:14px;padding:12px 0}
+.skel{color:var(--faint);padding:24px 0;font-size:14px}
+footer{border-top:1px solid var(--line);padding:18px 0;color:var(--faint);font-size:12px}
+
+@media (max-width:560px){
+  .mark{font-size:16px}
+  .tm .nm{font-size:13px}
+  .feature .tm .nm{font-size:15px}
+  .tm img{width:32px;height:32px}
+  .feature .tm img{width:42px;height:42px}
+  .bucket{grid-template-columns:80px 1fr 90px;gap:8px}
+  .epa-col{display:none}
+}
+@media (prefers-reduced-motion:no-preference){
+  .bar-split .away,.bar-split .home{transition:width .4s ease}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="bar">
+      <div class="mark">NFL <em>WIN PREDICTOR</em></div>
+      <nav id="nav" aria-label="Pages">
+        <button data-page="week" aria-current="true">This Week</button>
+        <button data-page="rankings">Power Rankings</button>
+        <button data-page="performance">Performance</button>
+        <button data-page="methodology">Methodology</button>
+      </nav>
+    </div>
+    <div class="sync">
+      <span id="stamp">Last updated: —</span>
+      <button id="syncBtn" type="button">Update data</button>
+      <span id="syncMsg"></span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="page-week">
+    <h1>This Week</h1>
+    <p class="sub">Straight-up winner probabilities for every game, built from opponent-adjusted efficiency, Elo power ratings, quarterback and injury situations, weather, and the betting market.</p>
+    <div class="controls">
+      <div class="weeks" id="weekChips" role="tablist" aria-label="Week"></div>
+      <select id="sortSel" aria-label="Sort games">
+        <option value="time">Sort: kickoff</option>
+        <option value="conf">Sort: confidence</option>
+        <option value="prob">Sort: win probability</option>
+        <option value="upset">Sort: upset risk</option>
+      </select>
+    </div>
+    <div id="gamesOut" class="skel">Loading…</div>
+  </section>
+
+  <section id="page-rankings" hidden>
+    <h1>Power Rankings</h1>
+    <p class="sub">Elo ratings replayed from 2010 with margin-of-victory and opponent adjustments, alongside opponent-adjusted EPA per play for this season (early weeks blend in last season).</p>
+    <div id="rankOut" class="skel">Loading…</div>
+  </section>
+
+  <section id="page-performance" hidden>
+    <h1>Model Performance</h1>
+    <p class="sub">Every number below comes from a walk-forward backtest: for each historical game the model saw only information available before kickoff.</p>
+    <div id="perfOut" class="skel">Loading…</div>
+  </section>
+
+  <section id="page-methodology" hidden>
+    <h1>Methodology</h1>
+    <div class="prose">
+      <p>This site answers one question per game: which team is more likely to win outright, and by how much? It does not pick spreads, totals, or parlays, and it does not claim certainty about any game.</p>
+      <h2>What goes into a prediction</h2>
+      <p>Two views of team strength are combined. The first is an Elo power rating built by replaying every game since 2010, where beating a good team narrowly counts for more than routing a bad one, and ratings regress a third of the way to the mean each offseason. The second is efficiency: expected points added per play on offense and allowed on defense, adjusted for the quality of opponents faced and weighted toward recent games. Early in the season the model leans on Elo and last season's efficiency; as real games accumulate, current-season efficiency takes more of the weight.</p>
+      <p>On top of that base, the model adjusts for the specific game. If the listed starting quarterback is not the one whose play is baked into the team's ratings, the gap between the two quarterbacks' career EPA per dropback moves the line — an elite starter giving way to a backup materially changes the prediction. Non-quarterback injuries are weighted by position (tackles, edge rushers, and corners matter more than running backs) and by status, with Questionable counting a quarter of Out. Home field adds about two points, rest differential adds or subtracts, and for outdoor games a forecast is pulled: strong wind pushes the probability toward a coin flip and trims the projected score.</p>
+      <p>When a market moneyline exists, we convert it to a fair implied probability by removing the bookmaker's margin and blend it 50/50 with the model, because the market aggregates information no model has. Sharp disagreements are flagged, not hidden.</p>
+      <h2>What the probabilities mean</h2>
+      <p>A 65% probability means that across all games where the model said 65%, the favored team should win about 65% of the time. The Performance page shows how well that holds, bucket by bucket, across historical seasons. If a bucket drifts from its label, that's a model problem and it stays visible.</p>
+      <h2>What this version leaves out</h2>
+      <p>The injury model weights positions, not named players — it doesn't yet know a Pro Bowl tackle from a rotational one. There is no play-level matchup analysis (blitz rates, coverage styles), no coaching factor, and no special-teams rating. Those are candidates for later phases, and each will be labeled with the model version that introduced it.</p>
+      <h2>Honesty rules</h2>
+      <p>Predictions lock at kickoff and are never revised after the fact. Missing data is shown as missing, never invented. Backtests never use information from the future — which is why the backtest covers only the Elo-and-market core: the newer factors are tracked live from the day they shipped rather than fitted to the past. Model changes get a new version number, and old predictions keep the version that made them.</p>
+    </div>
+  </section>
+</main>
+
+<footer><div class="wrap">Data: nflverse public releases, Open-Meteo. Model <span id="ver">v2.0.0-phase2</span>. Probabilities are estimates, not guarantees.</div></footer>
+
+<script>
+/* ── CONFIG — set these two values ─────────────────────────────── */
+const SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
+const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+/* ──────────────────────────────────────────────────────────────── */
+
+const HEADERS = { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY };
+const $ = s => document.querySelector(s);
+const state = { teams: {}, games: [], perf: [], elo: [], form: {}, week: null, sort: "time" };
+
+async function q(path){
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: HEADERS });
+  if(!r.ok) throw new Error(`${path} → ${r.status}`);
+  return r.json();
+}
+
+function brightVal(hex){
+  const n = parseInt(hex.slice(1),16);
+  const [r,g,b]=[(n>>16)&255,(n>>8)&255,n&255].map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)});
+  return .2126*r+.7152*g+.0722*b;
+}
+function teamColor(t){ if(!t) return "#5E6C82"; return brightVal(t.color)>=.05?t.color:(brightVal(t.color2||"#888")>=.05?t.color2:"#8A96AA"); }
+const pct = p => (p*100).toFixed(1)+"%";
+const confClass = c => ({"Very High":"vh","High":"h","Moderate":"m","Low":"l","Toss-Up":"t"})[c]||"t";
+const signed = v => (v>0?"+":"")+Number(v).toFixed(1);
+function fmtKick(g){
+  if(!g.kickoff) return g.gameday||"TBD";
+  const d = new Date(g.kickoff);
+  return d.toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"}) + " " +
+         d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+}
+const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function loadAll(){
+  try{
+    const [teams, games, elo, perf, form] = await Promise.all([
+      q("teams?select=*"),
+      q("games?select=*,predictions(*)&order=kickoff.asc.nullslast"),
+      q("elo_ratings?select=*&order=rating.desc"),
+      q("model_performance?select=*"),
+      q("team_form?select=*").catch(()=>[]),
+    ]);
+    for(const t of teams) state.teams[t.abbr]=t;
+    state.games = games;
+    state.elo = elo;
+    state.perf = perf;
+    state.form = Object.fromEntries((form||[]).map(f=>[f.team,f]));
+    const stamps = games.map(g=>g.predictions?.[0]?.updated_at).filter(Boolean).sort();
+    if(stamps.length) $("#stamp").textContent = "Last updated: " + new Date(stamps[stamps.length-1]).toLocaleString();
+    pickDefaultWeek();
+    renderAll();
+  }catch(e){
+    const msg = `<div class="empty"><b>Nothing here yet</b>Run both schema files in Supabase, set the two config values at the top of index.html, then press <b>Update data</b> to load the first sync.<div class="err">${esc(e.message)}</div></div>`;
+    $("#gamesOut").innerHTML = msg;
+    $("#rankOut").innerHTML = msg;
+    $("#perfOut").innerHTML = msg;
+  }
+}
+
+function pickDefaultWeek(){
+  const reg = state.games;
+  if(!reg.length) return;
+  const upcoming = reg.find(g=>!g.completed);
+  state.week = upcoming ? upcoming.week + "|" + upcoming.game_type : reg[reg.length-1].week + "|" + reg[reg.length-1].game_type;
+}
+
+function weekLabel(w, type){ return type==="REG" ? "Wk "+w : ({WC:"Wild Card",DIV:"Divisional",CON:"Conf Champ",SB:"Super Bowl"}[type]||type); }
+
+function renderAll(){ renderWeeks(); renderGames(); renderRankings(); renderPerf(); }
+
+function renderWeeks(){
+  const seen=[], keys=new Set();
+  for(const g of state.games){
+    const k=g.week+"|"+g.game_type;
+    if(!keys.has(k)){keys.add(k);seen.push({k,w:g.week,t:g.game_type});}
+  }
+  $("#weekChips").innerHTML = seen.map(x=>
+    `<button role="tab" data-wk="${x.k}" aria-current="${x.k===state.week}">${weekLabel(x.w,x.t)}</button>`).join("");
+  document.querySelectorAll("#weekChips button").forEach(b=>b.onclick=()=>{state.week=b.dataset.wk;renderWeeks();renderGames();});
+  const cur=document.querySelector('#weekChips button[aria-current="true"]');
+  if(cur) cur.scrollIntoView({inline:"center",block:"nearest"});
+}
+
+function gameSorter(a,b){
+  const pa=a.predictions?.[0], pb=b.predictions?.[0];
+  const conf=p=>p?Math.max(p.home_prob,1-p.home_prob):0;
+  switch(state.sort){
+    case "conf": case "prob": return conf(pb)-conf(pa);
+    case "upset": {
+      const u=p=>p?(p.upset_flag?2:0)+(1-Math.abs(p.home_prob-0.5)*2):0;
+      return u(pb)-u(pa);
+    }
+    default: return (a.kickoff||"").localeCompare(b.kickoff||"");
+  }
+}
+
+function renderGames(){
+  const wk = state.games.filter(g=>g.week+"|"+g.game_type===state.week);
+  if(!wk.length){ $("#gamesOut").innerHTML='<div class="empty"><b>No games</b>Nothing scheduled for this week yet.</div>'; return; }
+  const sorted=[...wk].sort(gameSorter);
+
+  let hot=null, gap=null, coin=null;
+  for(const g of wk){
+    const p=g.predictions?.[0]; if(!p||g.completed) continue;
+    const c=Math.max(p.home_prob,1-p.home_prob);
+    if(!hot||c>Math.max(hot.predictions[0].home_prob,1-hot.predictions[0].home_prob)) hot=g;
+    if(p.home_prob_market!=null){
+      const d=Math.abs(p.home_prob_model-p.home_prob_market);
+      if(!gap||d>Math.abs(gap.predictions[0].home_prob_model-gap.predictions[0].home_prob_market)) gap=g;
+    }
+    if(!coin||Math.abs(p.home_prob-.5)<Math.abs(coin.predictions[0].home_prob-.5)) coin=g;
+  }
+  const flags=g=>{
+    const f=[];
+    if(g===hot) f.push('<span class="flag hot">Strongest pick</span>');
+    if(g===gap && Math.abs(g.predictions[0].home_prob_model-g.predictions[0].home_prob_market)>=0.04) f.push('<span class="flag upset">Model vs market</span>');
+    if(g===coin && Math.abs(g.predictions[0].home_prob-.5)<=0.03) f.push('<span class="flag coin">Toss-up</span>');
+    if(g.predictions?.[0]?.upset_flag) f.push('<span class="flag upset">Upset watch</span>');
+    return f.join(" ");
+  };
+
+  const featured = state.sort==="time" ? hot : null;
+  const html=[];
+  if(featured) html.push(gameCard(featured, flags(featured), true));
+  for(const g of sorted){ if(g===featured) continue; html.push(gameCard(g, flags(g), false)); }
+  $("#gamesOut").innerHTML = (featured?html[0]:"") + '<div class="games">' + html.slice(featured?1:0).join("") + '</div>';
+  document.querySelectorAll(".game[data-exp]").forEach(el=>{
+    el.querySelector(".more").onclick=()=>el.classList.toggle("open");
+  });
+}
+
+function brkRow(label, val, cls){
+  return `<span>${label}</span><b class="${cls||""}">${val}</b>`;
+}
+
+function breakdownHtml(g, p){
+  const bd = p.breakdown;
+  if(!bd) return "";
+  const rows=[];
+  rows.push(brkRow("Elo power rating", signed(bd.elo_margin)+" pts", bd.elo_margin>0?"pos":bd.elo_margin<0?"neg":""));
+  rows.push(brkRow(`Adjusted efficiency (weight ${Math.round((bd.epa_weight||0)*100)}%)`,
+    bd.epa_margin==null?"Data unavailable":signed(bd.epa_margin)+" pts",
+    bd.epa_margin>0?"pos":bd.epa_margin<0?"neg":""));
+  rows.push(brkRow("Quarterback adjustment", signed(bd.qb_adj||0)+" pts", bd.qb_adj>0?"pos":bd.qb_adj<0?"neg":""));
+  rows.push(brkRow("Injury impact", bd.injuries?.home||bd.injuries?.away?signed(bd.injury_adj||0)+" pts":"Data unavailable",
+    bd.injury_adj>0?"pos":bd.injury_adj<0?"neg":""));
+  let wxTxt = "Data unavailable";
+  if(bd.weather?.indoor) wxTxt = "Indoor";
+  else if(bd.weather?.summary) wxTxt = bd.weather.summary;
+  rows.push(brkRow("Weather", wxTxt, ""));
+  rows.push(`<span class="tot">Model margin, ${esc(state.teams[g.home]?.name||g.home)}</span><b class="tot">${signed(bd.final_margin)} pts</b>`);
+
+  const qbLine = [];
+  if(bd.away_qb?.name) qbLine.push(`${esc(bd.away_qb.name)}${bd.away_qb.value!=null?` (${bd.away_qb.value>=0?"+":""}${bd.away_qb.value} EPA/db)`:""}`);
+  if(bd.home_qb?.name) qbLine.push(`${esc(bd.home_qb.name)}${bd.home_qb.value!=null?` (${bd.home_qb.value>=0?"+":""}${bd.home_qb.value} EPA/db)`:""}`);
+  const injNames = [
+    ...(bd.injuries?.away?.names||[]).map(n=>esc(state.teams[g.away]?.abbr||g.away)+": "+esc(n)),
+    ...(bd.injuries?.home?.names||[]).map(n=>esc(state.teams[g.home]?.abbr||g.home)+": "+esc(n)),
+  ];
+  return `<h3>Factor breakdown (positive favors ${esc(state.teams[g.home]?.name||g.home)})</h3>
+    <div class="brk">${rows.join("")}</div>
+    ${qbLine.length?`<div class="subnote">QBs: ${qbLine.join(" vs ")}</div>`:""}
+    ${injNames.length?`<div class="subnote">Key injuries: ${injNames.join(" · ")}</div>`:""}`;
+}
+
+function gameCard(g, flagHtml, feature){
+  const p=g.predictions?.[0];
+  const A=state.teams[g.away], H=state.teams[g.home];
+  const ca=teamColor(A), ch=teamColor(H);
+  const done=g.completed;
+  let bar="", line="", detail="", probsRow="";
+
+  if(p){
+    const hp=p.home_prob, ap=1-hp;
+    const homePick=hp>=.5;
+    probsRow=`<div class="probs">
+      <span class="${homePick?"":"win"}" style="color:${ca}">${pct(ap)}</span>
+      <span class="${homePick?"win":""}" style="color:${ch}">${pct(hp)}</span></div>`;
+    bar=`<div class="bar-split" role="img" aria-label="${esc(A?.name)} ${pct(ap)}, ${esc(H?.name)} ${pct(hp)}">
+      <span class="away" style="width:${(ap*100).toFixed(1)}%;background:${ca}"></span>
+      <span class="home" style="width:${(hp*100).toFixed(1)}%;background:${ch}"></span>
+      <span class="tick" style="left:${(ap*100).toFixed(1)}%"></span></div>`;
+
+    if(done){
+      const hit = p.pick === (g.home_score>g.away_score ? g.home : g.away);
+      line=`<div class="gline"><span>Final: <b>${g.away_score}–${g.home_score}</b></span>
+        <span>Pick was <b>${esc(state.teams[p.pick]?.name||p.pick)}</b>
+        <span class="${hit?"result-hit":"result-miss"}">${hit?"✓ hit":"✗ miss"}</span></span>
+        <span>Locked ${pct(Math.max(hp,ap))} pregame</span></div>`;
+    }else{
+      const wx = p.breakdown?.weather;
+      const wxBit = wx && !wx.indoor && wx.summary ? `<span>${esc(wx.summary)}</span>` : "";
+      line=`<div class="gline">
+        <span>Pick: <b>${esc(state.teams[p.pick]?.name||p.pick)}</b></span>
+        <span>Projected: <b>${p.proj_away}–${p.proj_home}</b></span>
+        <span class="chip ${confClass(p.confidence)}">${p.confidence}</span>
+        <span>Upset risk <b>${pct(Math.min(p.home_prob,1-p.home_prob))}</b></span>${wxBit}</div>`;
+      const mm = p.home_prob_market!=null
+        ? `<div class="brk">${brkRow("Model", esc(state.teams[p.home_prob_model>=.5?g.home:g.away]?.name)+" "+pct(Math.max(p.home_prob_model,1-p.home_prob_model)))}
+           ${brkRow("Market", esc(state.teams[p.home_prob_market>=.5?g.home:g.away]?.name)+" "+pct(Math.max(p.home_prob_market,1-p.home_prob_market)))}
+           ${brkRow("Elo", p.away_elo+" — "+p.home_elo)}</div>`
+        : `<div class="brk">${brkRow("Market","Data unavailable")}${brkRow("Elo", p.away_elo+" — "+p.home_elo)}</div>`;
+      detail=`<div class="detail">
+        <h3>Why the model likes this pick</h3>
+        <ul>${(p.factors||[]).map(f=>`<li>${esc(f)}</li>`).join("")}</ul>
+        <h3>What could break it</h3>
+        <ul class="risks">${(p.risks||[]).map(f=>`<li>${esc(f)}</li>`).join("")}</ul>
+        ${breakdownHtml(g, p)}
+        <h3>Model vs market</h3>${mm}
+      </div>`;
+    }
+  }else{
+    line=`<div class="gline"><span>Prediction pending next sync${done?` — Final: <b>${g.away_score}–${g.home_score}</b>`:""}</span></div>`;
+  }
+
+  return `<article class="game${feature?" feature":""}" ${p&&!done?'data-exp="1"':""}>
+    <div class="gtop"><span>${fmtKick(g)}</span><span>${esc(g.stadium||"")}</span>${flagHtml||""}</div>
+    <div class="teams">
+      <div class="tm"><img src="${A?.logo||""}" alt="" loading="lazy"><div><div class="nm">${esc(A?.name||g.away)}</div><div class="rec">${rec(g.away)}${g.away_qb?" · "+esc(g.away_qb):""}</div></div></div>
+      <div class="at">at</div>
+      <div class="tm right"><img src="${H?.logo||""}" alt="" loading="lazy"><div><div class="nm">${esc(H?.name||g.home)}</div><div class="rec">${rec(g.home)}${g.home_qb?" · "+esc(g.home_qb):""}</div></div></div>
+    </div>
+    ${probsRow}${bar}${line}
+    ${p&&!done?'<button class="more" type="button">Full analysis</button>':""}
+    ${detail}
+  </article>`;
+}
+
+function rec(abbr){
+  const e=state.elo.find(x=>x.team===abbr);
+  if(!e) return "";
+  return `${e.wins}–${e.losses}${e.ties?"–"+e.ties:""}`;
+}
+
+function renderRankings(){
+  if(!state.elo.length){$("#rankOut").innerHTML='<div class="empty"><b>No ratings yet</b>Press Update data to run the first sync.</div>';return;}
+  const max=state.elo[0].rating, min=state.elo[state.elo.length-1].rating;
+  const rows=state.elo.map(e=>{
+    const t=state.teams[e.team];
+    const f=state.form[e.team];
+    const w=((e.rating-min)/(max-min)*100).toFixed(0);
+    let mv='<span class="mv-fl">—</span>';
+    if(e.prev_rank!=null && e.prev_rank!==e.rank){
+      const d=e.prev_rank-e.rank;
+      mv=d>0?`<span class="mv-up">▲${d}</span>`:`<span class="mv-dn">▼${-d}</span>`;
+    }
+    const epaCell=v=>v==null?'<td class="n epa-col">—</td>':`<td class="n epa-col ${v>0?"pos":v<0?"neg":""}">${(v>0?"+":"")+Number(v).toFixed(2)}</td>`;
+    return `<tr>
+      <td class="n">${e.rank}</td>
+      <td><div class="rk-team"><img src="${t?.logo||""}" alt="" loading="lazy">${esc(t?.name||e.team)} <small>${esc(t?.conference||"")} ${esc(t?.division||"")}</small></div></td>
+      <td>${mv}</td>
+      <td class="n">${rec(e.team)}</td>
+      ${epaCell(f?f.off_epa:null)}
+      ${epaCell(f?(f.def_epa==null?null:-f.def_epa):null)}
+      <td><div class="rbar"><i style="width:${w}%;background:${teamColor(t)}"></i></div></td>
+      <td class="n"><b>${Number(e.rating).toFixed(1)}</b></td>
+    </tr>`;
+  }).join("");
+  $("#rankOut").innerHTML=`<table><thead><tr><th class="n">#</th><th>Team</th><th>Wk</th><th class="n">Record</th><th class="n epa-col">Off EPA</th><th class="n epa-col">Def EPA</th><th>Rating</th><th class="n">Elo</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="subnote" style="margin-top:8px">Off EPA: opponent-adjusted EPA per play. Def EPA: shown so higher is better for both columns. Blank until the season's data arrives.</div>`;
+}
+
+function renderPerf(){
+  const overall=state.perf.find(p=>p.id==="overall");
+  if(!overall){$("#perfOut").innerHTML='<div class="empty"><b>No backtest yet</b>Press Update data to run the first sync — the backtest replays every season since 2015.</div>';return;}
+  const m=overall.metrics;
+  const seasons=state.perf.filter(p=>p.id!=="overall").sort((a,b)=>b.season-a.season);
+  const order=["Very High","High","Moderate","Low","Toss-Up"];
+  const buckets=order.filter(b=>m.buckets?.[b]).map(b=>{
+    const v=m.buckets[b];
+    return `<div class="bucket"><span class="lbl">${b}</span>
+      <div class="rbar"><i style="width:${v.winRate}%;background:var(--amber)"></i></div>
+      <span class="meta">${v.winRate}% over ${v.n.toLocaleString()}</span></div>`;
+  }).join("");
+  const rows=seasons.map(s=>{
+    const x=s.metrics;
+    return `<tr><td>${s.season}</td><td class="n">${x.games}</td><td class="n"><b>${x.accuracy??"—"}%</b></td>
+      <td class="n">${x.marketFavAccuracy!=null?x.marketFavAccuracy+"%":"—"}</td><td class="n">${x.brier??"—"}</td></tr>`;
+  }).join("");
+  const edge = m.modelAccuracyWithMarket!=null && m.marketFavAccuracy!=null
+    ? (m.modelAccuracyWithMarket-m.marketFavAccuracy).toFixed(1) : null;
+  $("#perfOut").innerHTML=`
+    <div class="stats">
+      <div class="stat"><div class="v">${m.accuracy}%</div><div class="k">Straight-up accuracy, ${m.games.toLocaleString()} games since 2015</div></div>
+      <div class="stat"><div class="v">${m.brier}</div><div class="k">Brier score (lower is better; .25 = coin flips)</div></div>
+      <div class="stat"><div class="v">${m.marketFavAccuracy!=null?m.marketFavAccuracy+"%":"—"}</div><div class="k">Just picking the moneyline favorite</div></div>
+      <div class="stat"><div class="v">${edge!=null?(edge>0?"+":"")+edge+" pts":"—"}</div><div class="k">Model vs market favorite, same games</div></div>
+    </div>
+    <div class="note"><b>Read this honestly.</b> The market favorite alone wins about two thirds of games, and this backtest covers the core Elo + market model only. The newer factors — efficiency, quarterbacks, injuries, weather — are tracked live from the day they shipped (model v2, Sep 2026), never fitted to the past. Their contribution shows up in the live record, not here.</div>
+    <h2>Calibration by confidence label</h2>
+    ${buckets}
+    <h2>By season</h2>
+    <table><thead><tr><th>Season</th><th class="n">Games</th><th class="n">Model</th><th class="n">Mkt favorite</th><th class="n">Brier</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#nav button").forEach(x=>x.setAttribute("aria-current","false"));
+  b.setAttribute("aria-current","true");
+  ["week","rankings","performance","methodology"].forEach(p=>{
+    document.getElementById("page-"+p).hidden = p!==b.dataset.page;
+  });
+  window.scrollTo({top:0});
+});
+$("#sortSel").onchange=e=>{state.sort=e.target.value;renderGames();};
+
+$("#syncBtn").onclick=async()=>{
+  const btn=$("#syncBtn"), msg=$("#syncMsg");
+  btn.disabled=true; msg.textContent="Syncing… ~10s";
+  try{
+    const r=await fetch("/.netlify/functions/sync",{method:"POST"});
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error||"sync failed");
+    const c=j.components||{};
+    msg.textContent=`Done: ${j.predictions} predictions · EPA ${c.epa?"✓":"—"} QB ${c.qb?"✓":"—"} Inj ${c.injuries?"✓":"—"} Wx ${c.weather??0}`;
+    await loadAll();
+  }catch(e){ msg.textContent="Failed: "+e.message; }
+  btn.disabled=false;
+  setTimeout(()=>msg.textContent="",10000);
+};
+
+loadAll();
+</script>
+</body>
+</html>
