@@ -217,7 +217,7 @@ footer{border-top:1px solid var(--line);padding:18px 0;color:var(--faint);font-s
 <script>
 /* ── CONFIG — set these two values ─────────────────────────────── */
 const SUPABASE_URL = "https://hhxdncroswzmhorsqmma.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhoeGRuY3Jvc3d6bWhvcnNxbW1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0OTYyMzksImV4cCI6MjEwNTA3MjIzOX0.QMMGO9b1KRP49ybrgthbEKmr2QyJK_VjXXuYeEsaT7I";
+const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
 /* ──────────────────────────────────────────────────────────────── */
 
 const HEADERS = { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY };
@@ -263,7 +263,9 @@ async function loadAll(){
       q("team_form?select=*").catch(()=>[]),
     ]);
     for(const t of teams) state.teams[t.abbr]=t;
-    state.games = games;
+    // predictions is a one-to-one embed: PostgREST returns an object (or null),
+    // not an array — normalize to an array so the rest of the code is uniform
+    state.games = games.map(g=>({...g, predictions: !g.predictions ? [] : (Array.isArray(g.predictions) ? g.predictions : [g.predictions])}));
     state.elo = elo;
     state.perf = perf;
     state.form = Object.fromEntries((form||[]).map(f=>[f.team,f]));
