@@ -145,8 +145,8 @@ function kickoffISO(gameday, gametime) {
 }
 
 // ---------- Elo replay + core backtest (unchanged from v1) ----------
-function replay(games) {
-  const ratings = {}, record = {}, perf = {};
+function replay(games, retroSeason) {
+  const ratings = {}, record = {}, perf = {}, retroRows = [];
   let lastSeason = null;
   const blank = () => ({ games: 0, correct: 0, brier: 0,
     marketGames: 0, marketFavCorrect: 0, modelCorrectWithMarket: 0, buckets: {} });
@@ -166,12 +166,12 @@ function replay(games) {
     const { diff } = gameDiff(g, ratings);
     const pHomeModel = winProbFromElo(diff);
 
-    if (g.season >= BACKTEST_FROM) {
+    if (g.season >= BACKTEST_FROM || g.season === retroSeason) {
       const pMkt = marketProb(g.home_moneyline, g.away_moneyline);
       const pFinal = pMkt == null ? pHomeModel
         : MARKET_WEIGHT * pMkt + (1 - MARKET_WEIGHT) * pHomeModel;
       const homeWon = g.home_score > g.away_score;
-      if (g.home_score !== g.away_score) {
+      if (g.season >= BACKTEST_FROM && g.home_score !== g.away_score) {
         const s = (perf[g.season] = perf[g.season] || blank());
         const correct = (pFinal >= 0.5) === homeWon;
         s.games++; if (correct) s.correct++;
@@ -185,6 +185,28 @@ function replay(games) {
           if (correct) s.modelCorrectWithMarket++;
         }
       }
+      if (g.season === retroSeason) {
+        // Retrospective prediction: core model (Elo + rest + HFA + market),
+        // computed with ratings as they stood before this game. Inserted only
+        // where no locked live prediction exists.
+        const total = g.total_line ?? 44.5;
+        const marginPts = diff / ELO_TO_POINTS;
+        retroRows.push({
+          game_id: g.game_id, model_version: MODEL_VERSION + "-retro",
+          away_elo: Math.round(ratings[g.away] * 10) / 10,
+          home_elo: Math.round(ratings[g.home] * 10) / 10,
+          home_prob_model: Math.round(pHomeModel * 1000) / 1000,
+          home_prob_market: pMkt == null ? null : Math.round(pMkt * 1000) / 1000,
+          home_prob: Math.round(pFinal * 1000) / 1000,
+          pick: pFinal >= 0.5 ? g.home : g.away,
+          proj_home: Math.round(Math.max(3, (total + marginPts) / 2)),
+          proj_away: Math.round(Math.max(3, (total - marginPts) / 2)),
+          confidence: confidence(pFinal), upset_flag: false,
+          factors: ["Retrospective: computed after the fact from pregame Elo, rest, home field, and the market line only"],
+          risks: ["Not a live prediction; QB, injury, EPA, and weather factors are excluded to avoid using postgame information"],
+          locked: true, retro: true, updated_at: new Date().toISOString(),
+        });
+      }
     }
 
     const margin = g.home_score - g.away_score;
@@ -197,7 +219,7 @@ function replay(games) {
     else if (margin < 0) { record[g.away].w++; record[g.home].l++; }
     else { record[g.home].t++; record[g.away].t++; }
   }
-  return { ratings, record, perf, lastSeason };
+  return { ratings, record, perf, lastSeason, retroRows };
 }
 
 // ---------- team EPA form (opponent-adjusted, recency-weighted) ----------
@@ -509,8 +531,8 @@ export async function runSync() {
     (a.gameday || "").localeCompare(b.gameday || "") ||
     (a.gametime || "").localeCompare(b.gametime || ""));
 
-  const { ratings, record, perf, lastSeason } = replay(games);
   const currentSeason = Math.max(...games.map(g => g.season));
+  const { ratings, record, perf, lastSeason, retroRows } = replay(games, currentSeason);
   const seasonGames = games.filter(g => g.season === currentSeason);
   const upcoming = seasonGames.filter(g => !g.completed);
   const currentWeek = upcoming.length ? Math.min(...upcoming.map(g => g.week))
@@ -657,6 +679,12 @@ export async function runSync() {
     }
   }
   await upsert("predictions", predRows);
+  // Retro rows: insert-only-if-missing, so a locked live prediction is never
+  // replaced by a retrospective one.
+  if (retroRows.length) {
+    await supa("predictions", "POST", retroRows,
+      { Prefer: "resolution=ignore-duplicates,return=minimal" });
+  }
   if (condRows.length) await upsert("game_conditions", condRows);
   if (snapRows.length) await supa("prediction_snapshots", "POST", snapRows, { Prefer: "return=minimal" });
   if (lockIds.length) {
@@ -683,7 +711,7 @@ export async function runSync() {
 
   return {
     ok: true, model: MODEL_VERSION, season: currentSeason, week: currentWeek,
-    predictions: predRows.length, locked: lockIds.length, snapshots: snapRows.length,
+    predictions: predRows.length, retro: retroRows.length, locked: lockIds.length, snapshots: snapRows.length,
     components: {
       epa: !!form, qb: !!qb, injuries: !!inj,
       weather: Object.keys(wxMap).length,
